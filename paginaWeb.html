@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link href="https://netdna.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+    <script
+      src="https://code.jquery.com/jquery-3.6.0.slim.min.js"
+      integrity="sha256-u7e5khyithlIdTpu22PHhENmPcRdFiHRjhAuHcs05RI="
+      crossorigin="anonymous"></script>
+    <script src="https://netdna.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+    <base target="_top">
+    <style>
+        input {
+            display: block;
+            margin: 20px;
+        }
+        /* layout.css Style */
+        .upload-drop-zone {
+        height: 200px;
+        border-width: 2px;
+        margin-bottom: 20px;
+        }
+
+        /* skin.css Style*/
+        .upload-drop-zone {
+        color: #ccc;
+        border-style: dashed;
+        border-color: #ccc;
+        line-height: 200px;
+        text-align: center
+        }
+        .upload-drop-zone.drop {
+        color: #222;
+        border-color: #222;
+        }
+    </style>
+</head>
+
+<body style = "background-color: light-blue">
+    <a id="downloadAnchorElem" style="display:none"></a>
+    <div class="container">
+        <div class="panel panel-default">
+          <div class="panel-heading"><strong>Procesador Analisis Deserción Estudiantil</strong> <small>Sube aqui tu archivo en formato .xlsx (Modelo canonico)</small></div>
+          <div class="panel-body">
+
+            <!-- Sección de descarga de la plantilla -->
+            <div class="alert alert-info" role="alert">
+                <h4>Descarga la plantilla</h4>
+                <p>Por favor, descarga y diligencia la siguiente plantilla para proceder con el análisis:</p>
+                <a href="https://docs.google.com/spreadsheets/d/10iw8KY2F60QW2Gp15MwcvI2CEQTdYf0Y/edit?usp=sharing&ouid=115227532803427344673&rtpof=true&sd=true" class="btn btn-primary" download>Descargar Plantilla</a>
+            </div>
+  
+            <!-- Standar Form -->
+            
+            <form id="js-upload-form">
+              <div class="form-inline">
+                <div class="form-group">
+                  <input type="file" name="file" id="js-upload-files" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary" id="js-upload-submit">Subir archivo!</button>
+              </div>
+            </form>
+  
+            <!-- Progress Bar -->
+            <div class="progress">
+              <div class="progress-bar" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width: 0%;">
+                <span class="sr-only"></span>
+              </div>
+            </div>
+  
+            <!-- Upload Finished -->
+            <div class="js-upload-finished">
+              <h3>Log Proceso</h3>
+              <div class="list-group" id="listaProceso">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div> <!-- /container -->
+
+      <!-- line modal -->
+<div class="modal fade modal-fullscreen" id="modalMultifuncion" tabindex="-1" role="dialog" aria-labelledby="modalLabel" aria-hidden="true">
+  <div class="modal-dialog" style="width: 90%;">
+	<div class="modal-content">
+		<div class="modal-header">
+			<button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">×</span><span class="sr-only">Close</span></button>
+			<h3 class="modal-title" id="lineModalLabel">Panel de control</h3>
+		</div>
+		<div class="modal-body">
+        <!-- content goes here -->
+        <div class="panel with-nav-tabs panel-success">
+          <div class="panel-heading">
+                  <ul class="nav nav-tabs" id="contenedorHeaders"></ul>
+          </div>
+          <div class="panel-body">
+              <div class="tab-content" id="contenedorData">
+              </div>
+              <div>
+               <input class="input-group col-md-9" onchange="setCookie('endpoint',this.value,365)" type="text" id="endURL" placeholder="API_PRUEBAS_AUTOMATIZADAS" value="https://127.0.0.1:3000"></input>
+              </div>
+          </div>
+      </div>
+		</div>
+    <div class="modal-footer">
+			<div class="btn-group btn-group-justified" role="group" aria-label="group button">
+				<div class="btn-group" role="group">
+					<button type="button" class="btn btn-default" data-dismiss="modal"  role="button">Cerrar</button>
+				</div>
+				<div class="btn-group" role="group">
+					<button type="button" id="openMC" class="btn btn-default btn-hover-green" data-action="save" role="button">Abrir el MC</button>
+				</div>
+        <div class="btn-group" role="group">
+					<button type="button" id="reTest" class="btn btn-default btn-hover-green" data-action="save" role="button">Generar DataDriven</button>
+				</div>
+        <div class="btn-group" role="group">
+					<button type="button" id="createMock" class="btn btn-default btn-hover-green" data-action="save" role="button">Mock v1.17.0</button>
+				</div>
+        <div class="btn-group" role="group">
+					<button type="button" id="launchTestsJS" class="btn btn-default btn-hover-green" data-action="save" role="button">Ejecutar Test (Postman)</button>
+				</div>
+			</div>
+		</div>
+	</div>
+  </div>
+</div>
+
+    <script>
+        const form = document.getElementById('js-upload-form');
+        const bar = document.querySelector(".progress-bar");
+        
+        form.addEventListener('submit', e => {
+            agregarElementoAlLog("Subiendo Archivo a Google Drive.");
+            e.preventDefault();
+            StartSpinner();
+            const file = form.file.files[0];
+            const fr = new FileReader();
+            fr.readAsArrayBuffer(file);
+            fr.onload = d => {
+               const obj = {
+                  filename: file.name,
+                  mimeType: file.type,
+                  bytes: [...new Int8Array(d.target.result)]
+                };
+                google.script.run.withSuccessHandler(e => {
+                  bar.style.width = "15%";
+                  agregarElementoAlLog("Archivo Subido con Exito a Google Drive.");
+                  agregarElementoAlLog("Convirtiendo XLSX a Google Sheets");
+                  google.script.run.withSuccessHandler(f => {
+                    agregarElementoAlLog("Conversión Exitosa", f.fileUrl);
+                    agregarElementoAlLog("Enviando documento a BigQuery", f.fileUrl);
+                    const fID = f.fileId;
+                    bar.style.width = "30%";                     
+                    console.log(f.fileId)
+                    google.script.run.withSuccessHandler(f => {
+                      agregarElementoAlLog("Base de datos disponible en BigQuery");
+                      agregarElementoAlLog("Construyendo Modelos de Clasificación Supervisada (Este paso puede tardar hasta 10 minutos, por favor no abandone ni recargue la pagina)");
+                      bar.style.width = "50%";
+                      const tabla = f;
+                      google.script.run.withSuccessHandler(f => {
+                        bar.style.width = "60%";
+                        const arrModelos = f;
+                        console.log(arrModelos);
+                        var bandera = false;
+                        const modelos = [];
+                        const jobs = [];
+                        arrModelos.forEach(modelo =>
+                        {
+                          modelos.push(modelo.nombre.split("@")[0])
+                          jobs.push(modelo.nombre.split("@")[1])
+                        });
+                        console.log("Jobs: ");
+                        console.log(jobs);
+                        verificarTodosLosJobs(jobs, () => {
+                          bar.style.width = "70%";
+                          agregarElementoAlLog("Modelos de Clasificación Supervisada entrenados con exito");
+                          agregarElementoAlLog("Obteniendo las matrices de confusión");
+                          google.script.run.withSuccessHandler(f => {
+                            bar.style.width = "80%";
+                            agregarElementoAlLog("Se obtuvieron con exito las matrices de confusión");
+                            agregarElementoAlLog("Evaluando las matrices de confusión");
+                            const confMatrix = f;
+                            console.log("Matriz de confusión");
+                            console.log(f);
+                            google.script.run.withSuccessHandler(f => {
+                              const indice = f.modeloIndice;
+                              console.log("indice mejor modelo: ", f);
+                              console.log(modelos);
+                              console.log(modelos[indice]);
+                              console.log(tabla);
+                              bar.style.width = "85%";
+                              agregarElementoAlLog("Se ha evaluado con exito las matrices de confusión");
+                              agregarElementoAlLog("Elaborando predicciones.");
+                              google.script.run.withSuccessHandler(f => {
+                                bar.style.width = "90%";
+                                agregarElementoAlLog("Se han elaborado con exito las predicciones");
+                                agregarElementoAlLog("Elaborando el informe final");
+                                var etiquetas = f;
+                                console.log("Etiquetas");
+                                console.log(f);
+                                google.script.run.withSuccessHandler(f => {
+                                  console.log("Informe: ", f);
+                                  bar.style.width = "100%";
+                                  agregarElementoAlLog("Se ha finalizado con exito, el informe final ;)", f);
+                                  openInNewTab(f);
+                                  deleteSpinner();                                  
+                                }).generarInformeDePrediccion(confMatrix, modelos[indice], etiquetas, tabla)   
+                              }).predecirEtiquetas(modelos[indice], tabla);     
+                            }).elegirMejorModeloBasadoEnConfusion(confMatrix);   
+                          }).obtenerMatrizConfusion(modelos, tabla);                             
+                        });
+                      }).construirYEntrenarModelos(tabla);            
+                    }).googleSheetsToBigQuery(fID);            
+                  }).withFailureHandler(err => {
+                    alert("Ha ocurrido un error convirtiendo el archivo de Excel a Spreadsheets: " + err);
+                    deleteSpinner();
+                  }).convertirArchivo(e.fileId);
+                }).withFailureHandler(err => {
+                  alert("Ha ocurrido un error subiendo el archivo a Google Drive: " + err);
+                  deleteSpinner();
+                }).subirArchivo(obj);            
+            }
+        });
+
+    function verificarEstadoJob(jobId, onSuccess, onError) {
+    google.script.run.withSuccessHandler(function(result) {
+      console.log("Job: " + jobId + ", resultado: " + result);
+      console.log(result)
+      if (result) {
+        onSuccess(result); // Ejecuta la función de éxito si el job está completado
+      } else {
+        onError(result); // Ejecuta la función de error si el job aún no está completado
+      }
+    }).withFailureHandler(function(error) {
+      console.log("Error al verificar el estado del job:", error);
+      onError(error); // Maneja los errores potenciales en la solicitud
+    }).estaListoJobBigQuery(jobId);
+  }
+
+  function verificarTodosLosJobs(jobs, onAllSuccess) {
+    let estadosJobs = jobs.map(() => false); // Estado inicial de todos los jobs: no completados
+
+    function revisarJobs() {
+      jobs.forEach((job, index) => {
+        if (!estadosJobs[index]) { // Solo verifica los jobs que aún no han completado
+          verificarEstadoJob(job, (result) => {
+            estadosJobs[index] = true; // Marca el job como completado
+            console.log("Job completado:", job);
+            // Verifica si todos los jobs han completado
+            if (estadosJobs.every(estado => estado)) {
+              onAllSuccess(); // Todos los jobs han completado exitosamente
+            }
+          }, (error) => {
+            // Aquí podría ir lógica en caso de querer manejar errores específicos o reintento
+          });
+        }
+      });
+
+      // Si no todos los jobs han completado, planifica otra revisión
+      if (!estadosJobs.every(estado => estado)) {
+        setTimeout(revisarJobs, 5000); // Revisa nuevamente después de un retraso
+      }
+    }
+
+    revisarJobs(); // Inicia la primera revisión
+  }
+
+    function agregarElementoAlLog(mensaje, urlOpcional) {
+      var listaProceso = document.getElementById('listaProceso');
+      var nuevoElemento = document.createElement('div'); // Cambiado de 'a' a 'div' para soportar múltiples elementos dentro
+      nuevoElemento.classList.add('list-group-item');
+      
+      // Crear el contenido del mensaje con la fecha y hora
+      var fecha = new Date();
+      var fechaTexto = fecha.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) + ', ' + fecha.toLocaleTimeString();
+      var textoMensaje = document.createTextNode(fechaTexto + ' - ' + mensaje);
+      nuevoElemento.appendChild(textoMensaje);
+
+      // Si se proporciona una URL, añadir un enlace al final
+      if (urlOpcional) {
+        var enlace = document.createElement('a');
+        enlace.href = urlOpcional;
+        enlace.textContent = ' Ver más';
+        enlace.style.marginLeft = '10px'; // Espacio entre el mensaje y el enlace
+        nuevoElemento.appendChild(enlace);
+      }
+
+      listaProceso.appendChild(nuevoElemento);
+    }
+
+
+    function openInNewTab(url) {
+      console.log("Ha llegado" + url);
+      window.open(url, '_blank');
+      
+    }
+
+    
+  /*
+Funcion SpinGeneric.js
+Hecha el dia 28/07/2022 por Miguel Angel Califa
+
+Esta funcion se ha hecho generica para añadir el spinner en cualquier parte
+del software.
+
+Si deseas que el spinner se active debes agregar dentro de dos etiquetas script las siguientes lineas.
+<script>
+    Sys.WebForms.PageRequestManager.getInstance().add_initializeRequest(InitializeRequest);
+    Sys.WebForms.PageRequestManager.getInstance().add_endRequest(EndRequestHandler);
+
+El script manager debe tener un asyncpostbacktimeout alto!!.
+
+    <div>
+        <asp:ScriptManager AsyncPostBackTimeout="36000" ID="ScriptManager1" runat="server">
+        </asp:ScriptManager>
+    </div>
+    <asp:UpdatePanel ID="UpdatePanel1" runat="server">
+        <ContentTemplate>
+
+*/
+
+function StartSpinner() {
+    var opts = {
+        lines: 11 // The number of lines to draw
+        , length: 4 // The length of each line
+        , width: 8 // The line thickness
+        , radius: 26 // The radius of the inner circle
+        , scale: 1 // Scales overall size of the spinner
+        , corners: 1 // Corner roundness (0..1)
+        , color: '#000' // #rgb or #rrggbb or array of colors
+        , opacity: 0.3 // Opacity of the lines
+        , rotate: 0 // The rotation offset
+        , direction: 1 // 1: clockwise, -1: counterclockwise
+        , speed: 1 // Rounds per second
+        , trail: 60 // Afterglow percentage
+        , fps: 20 // Frames per second when using setTimeout() as a fallback for CSS
+        , zIndex: 2e9 // The z-index (defaults to 2000000000)
+        , className: 'spinner' // The CSS class to assign to the spinner
+        , top: '50%' // Top position relative to parent
+        , left: '50%' // Left position relative to parent
+        , shadow: false // Whether to render a shadow
+        , hwaccel: false // Whether to use hardware acceleration
+        , position: 'absolute' // Element positioning
+    }
+    var target = document.querySelectorAll("form")[0]
+    var spinner = new Spinner(opts).spin(target);
+    $(':input[type="submit"]').prop('disabled', true);
+}
+
+
+function StartSpinnerWithTarget(target) {
+    var opts = {
+        lines: 11 // The number of lines to draw
+        , length: 4 // The length of each line
+        , width: 8 // The line thickness
+        , radius: 26 // The radius of the inner circle
+        , scale: 1 // Scales overall size of the spinner
+        , corners: 1 // Corner roundness (0..1)
+        , color: '#000' // #rgb or #rrggbb or array of colors
+        , opacity: 0.3 // Opacity of the lines
+        , rotate: 0 // The rotation offset
+        , direction: 1 // 1: clockwise, -1: counterclockwise
+        , speed: 1 // Rounds per second
+        , trail: 60 // Afterglow percentage
+        , fps: 20 // Frames per second when using setTimeout() as a fallback for CSS
+        , zIndex: 2e9 // The z-index (defaults to 2000000000)
+        , className: 'spinner' // The CSS class to assign to the spinner
+        , top: '50%' // Top position relative to parent
+        , left: '50%' // Left position relative to parent
+        , shadow: false // Whether to render a shadow
+        , hwaccel: false // Whether to use hardware acceleration
+        , position: 'absolute' // Element positioning
+    }
+}
+
+function deleteSpinner() {
+    var elements = document.getElementsByClassName('spinner');
+    while (elements.length > 0) {
+        elements[0].parentNode.removeChild(elements[0]);
+    }
+    $(':input[type="submit"]').prop('disabled', false);
+}
+
+
+//Funciones para comparar respuestas.
+
+function similarity(s1, s2) {
+  var longer = s1;
+  var shorter = s2;
+  if (s1.length < s2.length) {
+    longer = s2;
+    shorter = s1;
+  }
+  var longerLength = longer.length;
+  if (longerLength == 0) {
+    return 1.0;
+  }
+  return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
+}
+
+function editDistance(s1, s2) {
+  s1 = s1.toLowerCase();
+  s2 = s2.toLowerCase();
+
+  var costs = new Array();
+  for (var i = 0; i <= s1.length; i++) {
+    var lastValue = i;
+    for (var j = 0; j <= s2.length; j++) {
+      if (i == 0)
+        costs[j] = j;
+      else {
+        if (j > 0) {
+          var newValue = costs[j - 1];
+          if (s1.charAt(i - 1) != s2.charAt(j - 1))
+            newValue = Math.min(Math.min(newValue, lastValue),
+              costs[j]) + 1;
+          costs[j - 1] = lastValue;
+          lastValue = newValue;
+        }
+      }
+    }
+    if (i > 0)
+      costs[s2.length] = lastValue;
+  }
+  return costs[s2.length];
+}
+
+function setCookie(cname, cvalue, exdays) {
+  const d = new Date();
+  d.setTime(d.getTime() + (exdays*24*60*60*1000));
+  let expires = "expires="+ d.toUTCString();
+  document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
+}
+
+function getCookie(cname) {
+  let name = cname + "=";
+  let decodedCookie = decodeURIComponent(document.cookie);
+  let ca = decodedCookie.split(';');
+  for(let i = 0; i <ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) == ' ') {
+      c = c.substring(1);
+    }
+    if (c.indexOf(name) == 0) {
+      return c.substring(name.length, c.length);
+    }
+  }
+  return "";
+}
+
+</script>
+<script>
+// http://spin.js.org/#v2.3.2
+!function(a,b){"object"==typeof module&&module.exports?module.exports=b():"function"==typeof define&&define.amd?define(b):a.Spinner=b()}(this,function(){"use strict";function a(a,b){var c,d=document.createElement(a||"div");for(c in b)d[c]=b[c];return d}function b(a){for(var b=1,c=arguments.length;c>b;b++)a.appendChild(arguments[b]);return a}function c(a,b,c,d){var e=["opacity",b,~~(100*a),c,d].join("-"),f=.01+c/d*100,g=Math.max(1-(1-a)/b*(100-f),a),h=j.substring(0,j.indexOf("Animation")).toLowerCase(),i=h&&"-"+h+"-"||"";return m[e]||(k.insertRule("@"+i+"keyframes "+e+"{0%{opacity:"+g+"}"+f+"%{opacity:"+a+"}"+(f+.01)+"%{opacity:1}"+(f+b)%100+"%{opacity:"+a+"}100%{opacity:"+g+"}}",k.cssRules.length),m[e]=1),e}function d(a,b){var c,d,e=a.style;if(b=b.charAt(0).toUpperCase()+b.slice(1),void 0!==e[b])return b;for(d=0;d<l.length;d++)if(c=l[d]+b,void 0!==e[c])return c}function e(a,b){for(var c in b)a.style[d(a,c)||c]=b[c];return a}function f(a){for(var b=1;b<arguments.length;b++){var c=arguments[b];for(var d in c)void 0===a[d]&&(a[d]=c[d])}return a}function g(a,b){return"string"==typeof a?a:a[b%a.length]}function h(a){this.opts=f(a||{},h.defaults,n)}function i(){function c(b,c){return a("<"+b+' xmlns="urn:schemas-microsoft.com:vml" class="spin-vml">',c)}k.addRule(".spin-vml","behavior:url(#default#VML)"),h.prototype.lines=function(a,d){function f(){return e(c("group",{coordsize:k+" "+k,coordorigin:-j+" "+-j}),{width:k,height:k})}function h(a,h,i){b(m,b(e(f(),{rotation:360/d.lines*a+"deg",left:~~h}),b(e(c("roundrect",{arcsize:d.corners}),{width:j,height:d.scale*d.width,left:d.scale*d.radius,top:-d.scale*d.width>>1,filter:i}),c("fill",{color:g(d.color,a),opacity:d.opacity}),c("stroke",{opacity:0}))))}var i,j=d.scale*(d.length+d.width),k=2*d.scale*j,l=-(d.width+d.length)*d.scale*2+"px",m=e(f(),{position:"absolute",top:l,left:l});if(d.shadow)for(i=1;i<=d.lines;i++)h(i,-2,"progid:DXImageTransform.Microsoft.Blur(pixelradius=2,makeshadow=1,shadowopacity=.3)");for(i=1;i<=d.lines;i++)h(i);return b(a,m)},h.prototype.opacity=function(a,b,c,d){var e=a.firstChild;d=d.shadow&&d.lines||0,e&&b+d<e.childNodes.length&&(e=e.childNodes[b+d],e=e&&e.firstChild,e=e&&e.firstChild,e&&(e.opacity=c))}}var j,k,l=["webkit","Moz","ms","O"],m={},n={lines:12,length:7,width:5,radius:10,scale:1,corners:1,color:"#000",opacity:.25,rotate:0,direction:1,speed:1,trail:100,fps:20,zIndex:2e9,className:"spinner",top:"50%",left:"50%",shadow:!1,hwaccel:!1,position:"absolute"};if(h.defaults={},f(h.prototype,{spin:function(b){this.stop();var c=this,d=c.opts,f=c.el=a(null,{className:d.className});if(e(f,{position:d.position,width:0,zIndex:d.zIndex,left:d.left,top:d.top}),b&&b.insertBefore(f,b.firstChild||null),f.setAttribute("role","progressbar"),c.lines(f,c.opts),!j){var g,h=0,i=(d.lines-1)*(1-d.direction)/2,k=d.fps,l=k/d.speed,m=(1-d.opacity)/(l*d.trail/100),n=l/d.lines;!function o(){h++;for(var a=0;a<d.lines;a++)g=Math.max(1-(h+(d.lines-a)*n)%l*m,d.opacity),c.opacity(f,a*d.direction+i,g,d);c.timeout=c.el&&setTimeout(o,~~(1e3/k))}()}return c},stop:function(){var a=this.el;return a&&(clearTimeout(this.timeout),a.parentNode&&a.parentNode.removeChild(a),this.el=void 0),this},lines:function(d,f){function h(b,c){return e(a(),{position:"absolute",width:f.scale*(f.length+f.width)+"px",height:f.scale*f.width+"px",background:b,boxShadow:c,transformOrigin:"left",transform:"rotate("+~~(360/f.lines*k+f.rotate)+"deg) translate("+f.scale*f.radius+"px,0)",borderRadius:(f.corners*f.scale*f.width>>1)+"px"})}for(var i,k=0,l=(f.lines-1)*(1-f.direction)/2;k<f.lines;k++)i=e(a(),{position:"absolute",top:1+~(f.scale*f.width/2)+"px",transform:f.hwaccel?"translate3d(0,0,0)":"",opacity:f.opacity,animation:j&&c(f.opacity,f.trail,l+k*f.direction,f.lines)+" "+1/f.speed+"s linear infinite"}),f.shadow&&b(i,e(h("#000","0 0 4px #000"),{top:"2px"})),b(d,b(i,h(g(f.color,k),"0 0 1px rgba(0,0,0,.1)")));return d},opacity:function(a,b,c){b<a.childNodes.length&&(a.childNodes[b].style.opacity=c)}}),"undefined"!=typeof document){k=function(){var c=a("style",{type:"text/css"});return b(document.getElementsByTagName("head")[0],c),c.sheet||c.styleSheet}();var o=e(a("group"),{behavior:"url(#default#VML)"});!d(o,"transform")&&o.adj?i():j=d(o,"animation")}return h});
+
+  
+ </script>
+</body>
+</html>
