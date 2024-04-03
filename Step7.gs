@@ -1,10 +1,11 @@
 function predecirEtiquetas(modelo, nombreTabla) {
-  // Aquí, obtendrías dinámicamente las columnas relevantes si es necesario
+   var nombreColumnaPrediccion = obtenerNombreColumnaPrediccion(nombreTabla);
+   var nombreColumnaPrediccionFormateado = nombreColumnaPrediccion.replace(/\s+/g, '_');
   // var columnasRelevantes = obtenerColumnasParaCategorizar(nombreTabla);
   var sqlQuery = `
     SELECT
       Consecutivo,
-      predicted_EstadoMatricula AS EstadoMatriculaPredicho
+      predicted_${nombreColumnaPrediccionFormateado} AS EstadoMatriculaPredicho
     FROM
       ML.PREDICT(MODEL \`${datasetId}.${modelo}\`, (
         SELECT
@@ -12,7 +13,7 @@ function predecirEtiquetas(modelo, nombreTabla) {
         FROM
           \`${datasetId}.${nombreTabla}\`
         WHERE
-          EstadoMatricula = ''
+          ${nombreColumnaPrediccion} = ''
       ))
     `;
   //console.log(sqlQuery); // Para depuración

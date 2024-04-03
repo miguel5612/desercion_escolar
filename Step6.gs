@@ -145,16 +145,26 @@ function ejecutarQueryBigQueryEsperaCompleta(querySql) {
 }
 
 function construirSqlModelo(nombreTabla, modeloNombreCompleto, tipoModelo, opcionesModelo, columnas) {
+  var nombreColumnaPrediccion = obtenerNombreColumnaPrediccion(nombreTabla);
   // Construcción de la parte de CAST para columnas a categorizar
   var columnasACategorizarSQL = columnas.columnasACategorizar.map(function(name) {
     return `CAST(${name} AS STRING) AS ${name}`;
   }).join(", ");
 
-  // Preparación de la lista completa de columnas para la consulta
-  var todasLasColumnas = columnas.columnasANoCategorizar.join(", ");
+  // Preparación de la lista completa de columnas para la consulta excluyendo la columna de predicción
+  var todasLasColumnasArray = columnas.columnasANoCategorizar.filter(function(columna) {
+    return columna !== nombreColumnaPrediccion; // Excluye la columna de predicción
+  });
+  console.log("AQUI YA DEBE IR SIN LA COLUMNA DE PREDICCION")
+  console.log(todasLasColumnasArray)
+
+  // Si existen columnas a categorizar, se añaden a la lista
   if (columnasACategorizarSQL) {
-    todasLasColumnas = todasLasColumnas ? todasLasColumnas + ", " + columnasACategorizarSQL : columnasACategorizarSQL;
+    todasLasColumnasArray.push(columnasACategorizarSQL);
   }
+
+  // Convertir el arreglo actualizado a una cadena para la consulta SQL
+  var todasLasColumnas = todasLasColumnasArray.join(", ");
 
   // Construcción de la cláusula OPTIONS para la consulta SQL, incluyendo opciones específicas del modelo
   var opcionesSql = `model_type='${tipoModelo}'`;
@@ -165,16 +175,35 @@ function construirSqlModelo(nombreTabla, modeloNombreCompleto, tipoModelo, opcio
   // Construcción final de la consulta SQL para crear y entrenar el modelo
   var sqlQuery = `
   CREATE OR REPLACE MODEL \`${projectId}.${datasetId}.${modeloNombreCompleto}\`
-  OPTIONS(${opcionesSql}, input_label_cols=['EstadoMatricula']) AS
+  OPTIONS(${opcionesSql}, input_label_cols=['${nombreColumnaPrediccion}']) AS
   SELECT
-    EstadoMatricula, ${todasLasColumnas}
+    ${todasLasColumnas}
   FROM
     \`${projectId}.${datasetId}.${nombreTabla}\`
   WHERE
-    EstadoMatricula IN ('ACTIVO', 'INACTIVO');
+    ${nombreColumnaPrediccion} IN ('ACTIVO', 'INACTIVO');
   `;
 
   return sqlQuery;
+}
+
+function obtenerNombreColumnaPrediccion(tableId) {
+  try {
+    var table = BigQuery.Tables.get(projectId, datasetId, tableId);
+    if (table && table.schema && table.schema.fields) {
+      // Buscar en todas las columnas la que contenga el texto "estado"
+      var columnaEstado = table.schema.fields.find(function(field) {
+        return field.name.toLowerCase().includes("estado");
+      });
+      return columnaEstado ? columnaEstado.name : null;
+    } else {
+      Logger.log('La tabla no tiene esquema o campos definidos.');
+      return null;
+    }
+  } catch (error) {
+    Logger.log('Error al obtener los metadatos de la tabla: ' + error.message);
+    return null;
+  }
 }
 
 
